@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environment (kept out of VCS; recreate with `uv sync`)
+.venv/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets / local config
+.env
+.env.*
+
+# NOTE: uv.lock is intentionally committed for reproducible installs.
