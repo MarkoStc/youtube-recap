@@ -65,3 +65,9 @@ def test_config_is_immutable() -> None:
     config = load_config()
     with pytest.raises(ValueError):
         config.search.max_results = 1  # type: ignore[misc]
+
+
+def test_cache_directory_expands_home(tmp_path: Path) -> None:
+    file = tmp_path / "c.yaml"
+    file.write_text("cache:\n  directory: ~/somewhere\n", encoding="utf-8")
+    assert load_config(file).cache.directory == Path.home() / "somewhere"

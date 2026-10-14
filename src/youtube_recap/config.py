@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 CONFIG_ENV_VAR = "YOUTUBE_RECAP_CONFIG"
 
@@ -52,6 +52,18 @@ class NetworkConfig(_Section):
     retry: RetryConfig
 
 
+class CacheConfig(_Section):
+    enabled: bool
+    directory: Path
+    search_ttl_seconds: float = Field(ge=0)
+    transcript_ttl_seconds: float = Field(ge=0)
+
+    @field_validator("directory")
+    @classmethod
+    def _expand_user(cls, value: Path) -> Path:
+        return value.expanduser()
+
+
 class LoggingConfig(_Section):
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     format: Literal["text", "json"]
@@ -62,6 +74,7 @@ class AppConfig(_Section):
     recap: RecapConfig
     transcripts: TranscriptConfig
     network: NetworkConfig
+    cache: CacheConfig
     logging: LoggingConfig
 
 
