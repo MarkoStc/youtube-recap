@@ -26,6 +26,9 @@ project uses [Semantic Versioning](https://semver.org/).
   exists, use YouTube's machine translation, else the original language. Output says
   which language was returned and whether it was translated.
 - Recap output marks cut transcripts (`[transcript cut after N characters]`).
+- Command-line interface: `search`, `transcript`, `recap` (text or `--json`), `cache
+  clear|path`, `config show`, `--version`, `--config`. With no command it runs the MCP
+  server, so existing client registrations keep working. `python -m youtube_recap` works too.
 - Token-bucket rate limit shared by all requests to YouTube (default 2 per second,
   bursts of 5), configurable under `rate_limit`.
 

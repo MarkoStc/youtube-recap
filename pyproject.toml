@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-youtube-recap = "youtube_recap.server:main"
+youtube-recap = "youtube_recap.cli:main"
 
 [dependency-groups]
 dev = [
@@ -59,6 +59,7 @@ markers = ["live: calls the real YouTube (deselected by default; run with -m liv
 
 [tool.coverage.run]
 source = ["youtube_recap"]
+omit = ["*/youtube_recap/__main__.py"]
 branch = true
 
 [tool.coverage.report]

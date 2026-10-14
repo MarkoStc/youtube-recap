@@ -13,8 +13,9 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
 
 from tests.conftest import FakeSearcher, FakeTranscripts
+from youtube_recap.app import build_service, prepare_runtime
 from youtube_recap.config import AppConfig
-from youtube_recap.server import build_server, build_service, prepare_runtime
+from youtube_recap.server import build_server
 from youtube_recap.service import RecapService
 
 pytestmark = pytest.mark.anyio

@@ -21,7 +21,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Release tag or git commit hash.
+      description: Output of `youtube-recap --version`, or the git commit hash.
   - type: input
     id: env
     attributes:
