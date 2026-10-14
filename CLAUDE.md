@@ -21,6 +21,10 @@ dataclasses in `models.py` and are turned into text by `formatting.py`.
   `app.py` is the composition root (`build_service`, `prepare_runtime`: logging + OS trust
   store) shared by `server.serve` and `cli.py`. The console script is `cli:main`; with no
   subcommand it serves MCP, so `youtube-recap` alone must keep starting the server.
+- `evaluation/` is a dev tool, not on the server path: `youtube-recap eval` summarizes
+  fixed videos with Claude and has a judge score key-point coverage (`evals/README.md`).
+  It needs the `eval` extra and API credentials; its tests use scripted fake models.
+  Never put a score in the README unless `evals/results/latest.md` produced it.
 - Caching (`cache.py`) and rate limiting (`ratelimit.py`) wrap or are injected into the
   adapters in `app.build_service`; the service never sees them.
 - `config.py` + `default.yaml`: every limit and default lives in the packaged YAML.
