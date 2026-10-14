@@ -24,6 +24,12 @@ network:
     max_backoff_seconds: 10.0
     multiplier: 2.0
 
+cache:
+  enabled: true
+  directory: ~/.cache/youtube-recap
+  search_ttl_seconds: 3600        # 1 hour: view counts and results change
+  transcript_ttl_seconds: 604800  # 7 days: captions rarely change
+
 logging:
   level: INFO            # DEBUG, INFO, WARNING, ERROR
   format: text           # text or json; always written to stderr
