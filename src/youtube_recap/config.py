@@ -37,6 +37,7 @@ class RecapConfig(_Section):
 
 class TranscriptConfig(_Section):
     languages: tuple[str, ...] = Field(min_length=1)
+    fallback: Literal["translate", "original", "none"]
 
 
 class RetryConfig(_Section):

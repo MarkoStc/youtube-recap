@@ -54,9 +54,12 @@ def build_server(service: RecapService) -> FastMCP:
         """Fetch the full plain-text transcript for a single YouTube video id.
 
         ``languages`` lists preferred language codes in order (default: configured languages).
+        If none exists, the server may return a machine translation or another language;
+        a ``[language: ...]`` line at the top says so.
         """
+        requested = languages or service.config.transcripts.languages
         try:
-            return formatting.format_transcript(service.transcript(video_id, languages))
+            return formatting.format_transcript(service.transcript(video_id, languages), requested)
         except TranscriptUnavailableError as exc:
             return formatting.format_unavailable(video_id, exc.reason)
 
@@ -80,7 +83,9 @@ def build_service(config: AppConfig) -> RecapService:
     rl = config.rate_limit
     limiter = RateLimiter(rl.requests_per_second, rl.burst) if rl.enabled else NoRateLimit()
     searcher: VideoSearcher = YtDlpSearcher(retry, net.timeout_seconds, limiter)
-    transcripts: TranscriptSource = YouTubeTranscriptSource(retry, net.timeout_seconds, limiter)
+    transcripts: TranscriptSource = YouTubeTranscriptSource(
+        retry, net.timeout_seconds, limiter, fallback=config.transcripts.fallback
+    )
     if config.cache.enabled:
         cache = DiskCache(config.cache.directory)
         searcher = CachedSearcher(searcher, cache, config.cache.search_ttl_seconds)

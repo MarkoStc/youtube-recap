@@ -39,5 +39,25 @@ def test_recap_blocks_and_placeholder() -> None:
     ]
     out = formatting.format_recap("q", items)
     first, second = out.split(formatting.RECAP_SEPARATOR)
-    assert first == "## Low\nhttps://youtu.be/aaaaaaaaaaa | views=10 | channel=C1\n\nhello"
+    assert first == (
+        "## Low\nhttps://youtu.be/aaaaaaaaaaa | views=10 | channel=C1 | language=en\n\nhello"
+    )
     assert second.endswith("[transcript unavailable: ccccccccccc: TranscriptsDisabled]")
+
+
+def test_recap_marks_truncation_and_translation() -> None:
+    transcript = Transcript(HIGH.id, "en", "x" * 1200, is_generated=True, translated_from="de")
+    out = formatting.format_recap("q", [RecapItem(HIGH, transcript, truncated=True)])
+    assert "| language=en (auto-translated from de)" in out
+    assert out.endswith("[transcript cut after 1,200 characters]")
+
+
+def test_transcript_language_note_only_when_unexpected() -> None:
+    plain = Transcript(LOW.id, "en", "hi", is_generated=False)
+    other = Transcript(LOW.id, "de", "hallo", is_generated=False)
+    translated = Transcript(LOW.id, "en", "hi", is_generated=True, translated_from="de")
+    assert formatting.format_transcript(plain, ["en"]) == "hi"
+    assert formatting.format_transcript(other, ["en"]) == "[language: de]\n\nhallo"
+    assert formatting.format_transcript(translated, ["en"]).startswith(
+        "[language: en (auto-translated from de)]"
+    )
