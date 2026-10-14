@@ -21,7 +21,7 @@ test:
 	uv run pytest --cov
 
 audit:  ## Check locked runtime dependencies for known vulnerabilities
-	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt > .audit-requirements.txt
+	uv export --locked --no-dev --all-extras --no-emit-project --no-hashes --format requirements-txt > .audit-requirements.txt
 	uvx pip-audit --requirement .audit-requirements.txt --no-deps --disable-pip
 	rm -f .audit-requirements.txt
 
