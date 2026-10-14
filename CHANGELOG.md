@@ -48,6 +48,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- README rewritten: quickstart, architecture diagram, example output, evaluation status.
+
 - README setup command no longer contains a path from the author's machine.
 
 ## [0.1.0] - 2026-10-13
