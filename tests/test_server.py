@@ -49,10 +49,20 @@ def test_recap_keeps_top_videos_and_truncates() -> None:
     assert "## Low" in out
     assert "Unknown views" not in out
     high_block = out.split("---")[0]
-    assert high_block.count("x") == server._MAX_TRANSCRIPT_CHARS
+    assert high_block.count("x") == server.config.recap.max_transcript_chars
     assert FakeYoutubeDL.calls == ["ytsearch3:q"]
 
 
 def test_recap_search_pool_never_smaller_than_num_videos() -> None:
     server.recap("q", num_videos=3, search_pool=1)
     assert FakeYoutubeDL.calls == ["ytsearch3:q"]
+
+
+def test_recap_negative_count_is_clamped_to_one() -> None:
+    out = server.recap("q", num_videos=-1)
+    assert out.count("## ") == 1
+
+
+def test_search_count_is_capped_by_config() -> None:
+    server.search_videos("q", 10_000)
+    assert FakeYoutubeDL.calls == [f"ytsearch{server.config.search.max_results}:q"]

@@ -1,0 +1,16 @@
+# Default settings for youtube-recap. This file is the single source of every limit and
+# default. To change values, write a YAML file with only the keys you want to override and
+# point YOUTUBE_RECAP_CONFIG (or the CLI --config flag) at it; it is merged over this file.
+
+search:
+  default_results: 10    # search_videos max_results when the caller gives none
+  max_results: 50        # hard cap per search call
+
+recap:
+  default_videos: 3      # videos summarized when the caller gives none
+  max_videos: 10
+  default_search_pool: 10  # results searched before keeping the most viewed
+  max_transcript_chars: 8000  # per video, to bound the client's token use
+
+transcripts:
+  languages: [en]        # preferred transcript languages, in order
