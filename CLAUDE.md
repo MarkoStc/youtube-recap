@@ -17,8 +17,12 @@ dataclasses in `models.py` and are turned into text by `formatting.py`.
 - `service.py` holds the logic (ranking, clamping counts, truncation) and depends only on
   the `VideoSearcher` and `TranscriptSource` Protocols in `youtube.py`. Tests inject fakes
   through the constructor; there is no monkeypatching of libraries.
-- `server.py`: `build_server(service)` registers the tools on a fresh `FastMCP`;
-  `main()` installs the OS trust store, loads config and runs stdio.
+- `server.py`: `build_server(service)` registers the tools on a fresh `FastMCP`.
+  `app.py` is the composition root (`build_service`, `prepare_runtime`: logging + OS trust
+  store) shared by `server.serve` and `cli.py`. The console script is `cli:main`; with no
+  subcommand it serves MCP, so `youtube-recap` alone must keep starting the server.
+- Caching (`cache.py`) and rate limiting (`ratelimit.py`) wrap or are injected into the
+  adapters in `app.build_service`; the service never sees them.
 - `config.py` + `default.yaml`: every limit and default lives in the packaged YAML.
   User files (`YOUTUBE_RECAP_CONFIG`) are deep-merged over it and validated into frozen
   pydantic models (`extra="forbid"`). Do not put numeric defaults in code or tool signatures;
@@ -36,7 +40,9 @@ dataclasses in `models.py` and are turned into text by `formatting.py`.
 
 ```sh
 uv sync                     # install / update env + lockfile
-uv run youtube-recap        # run the server over stdio
+uv run youtube-recap        # run the MCP server over stdio (same as `serve`)
+uv run youtube-recap search "query" -n 3        # live CLI check, no MCP client needed
+uv run youtube-recap config show                # effective merged config
 uv run ruff format .        # format
 uv run ruff check .         # lint (must stay clean)
 uv run mypy                 # strict type check (src + tests)
