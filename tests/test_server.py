@@ -1,68 +1,63 @@
-"""Tests for the three MCP tools against fake YouTube backends (see conftest.py)."""
+"""End-to-end tests of the MCP tools through an in-memory client session.
+
+These go through the real JSON-RPC layer (tool listing, argument validation, result
+content), with the YouTube backends replaced by the fakes in conftest.py.
+"""
 
 from __future__ import annotations
 
-from tests.conftest import FakeYoutubeDL
-from youtube_recap import server
+from typing import Any
+
+import pytest
+from mcp.shared.memory import create_connected_server_and_client_session
+from mcp.types import TextContent
+
+from tests.conftest import FakeSearcher, FakeTranscripts
+from youtube_recap.server import build_server
+from youtube_recap.service import RecapService
+
+pytestmark = pytest.mark.anyio
 
 
-def test_search_ranks_by_views_most_viewed_first() -> None:
-    out = server.search_videos("q", 3)
+async def _call(service: RecapService, tool: str, args: dict[str, Any]) -> str:
+    async with create_connected_server_and_client_session(build_server(service)) as client:
+        result = await client.call_tool(tool, args)
+    assert not result.isError, result.content
+    (content,) = result.content
+    assert isinstance(content, TextContent)
+    return content.text
+
+
+async def test_lists_the_three_tools(service: RecapService) -> None:
+    async with create_connected_server_and_client_session(build_server(service)) as client:
+        tools = (await client.list_tools()).tools
+    assert sorted(t.name for t in tools) == ["get_transcript", "recap", "search_videos"]
+    assert all(t.description for t in tools)
+
+
+async def test_search_videos_tool(service: RecapService, searcher: FakeSearcher) -> None:
+    out = await _call(service, "search_videos", {"query": "q", "max_results": 3})
     assert out.index("High") < out.index("Low") < out.index("Unknown views")
-    assert FakeYoutubeDL.calls == ["ytsearch3:q"]
+    assert searcher.calls == [("q", 3)]
 
 
-def test_search_formats_metadata() -> None:
-    out = server.search_videos("q", 3)
-    assert "views=5,000" in out
-    assert "channel=U2" in out  # falls back to uploader
-    assert "duration=1:02:05" in out
-    assert "duration=1:05" in out
-    assert "views=unknown | channel=unknown | duration=unknown" in out
-    assert "https://youtu.be/bbbbbbbbbbb" in out
+async def test_get_transcript_tool(service: RecapService, transcripts: FakeTranscripts) -> None:
+    out = await _call(service, "get_transcript", {"video_id": "aaaaaaaaaaa", "languages": ["de"]})
+    assert out == "hello world"
+    assert transcripts.calls == [("aaaaaaaaaaa", ("de",))]
 
 
-def test_search_no_results() -> None:
-    FakeYoutubeDL.entries = []
-    assert server.search_videos("nothing", 5) == "No results for 'nothing'."
+async def test_get_transcript_tool_missing(service: RecapService) -> None:
+    out = await _call(service, "get_transcript", {"video_id": "zzzzzzzzzzz"})
+    assert out == "[transcript unavailable: zzzzzzzzzzz: TranscriptsDisabled]"
 
 
-def test_search_drops_entries_without_id() -> None:
-    FakeYoutubeDL.entries = [{"title": "No id", "view_count": 99}, *FakeYoutubeDL.entries]
-    out = server.search_videos("q", 4)
-    assert "No id" not in out
-    assert "id=None" not in out
-
-
-def test_get_transcript_joins_snippets() -> None:
-    assert server.get_transcript("aaaaaaaaaaa") == "hello world"
-
-
-def test_get_transcript_missing_returns_placeholder() -> None:
-    out = server.get_transcript("zzzzzzzzzzz")
-    assert out.startswith("[transcript unavailable:")
-
-
-def test_recap_keeps_top_videos_and_truncates() -> None:
-    out = server.recap("q", num_videos=2, search_pool=3)
+async def test_recap_tool(service: RecapService) -> None:
+    out = await _call(service, "recap", {"query": "q", "num_videos": 2})
     assert out.startswith("## High")
     assert "## Low" in out
-    assert "Unknown views" not in out
-    high_block = out.split("---")[0]
-    assert high_block.count("x") == server.config.recap.max_transcript_chars
-    assert FakeYoutubeDL.calls == ["ytsearch3:q"]
 
 
-def test_recap_search_pool_never_smaller_than_num_videos() -> None:
-    server.recap("q", num_videos=3, search_pool=1)
-    assert FakeYoutubeDL.calls == ["ytsearch3:q"]
-
-
-def test_recap_negative_count_is_clamped_to_one() -> None:
-    out = server.recap("q", num_videos=-1)
-    assert out.count("## ") == 1
-
-
-def test_search_count_is_capped_by_config() -> None:
-    server.search_videos("q", 10_000)
-    assert FakeYoutubeDL.calls == [f"ytsearch{server.config.search.max_results}:q"]
+async def test_recap_tool_no_results(service: RecapService, searcher: FakeSearcher) -> None:
+    searcher.videos = []
+    assert await _call(service, "recap", {"query": "nothing"}) == "No results for 'nothing'."
