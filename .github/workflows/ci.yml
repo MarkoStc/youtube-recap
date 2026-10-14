@@ -72,5 +72,5 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt > requirements.txt
+      - run: uv export --locked --no-dev --all-extras --no-emit-project --no-hashes --format requirements-txt > requirements.txt
       - run: uvx pip-audit --requirement requirements.txt --no-deps --disable-pip
