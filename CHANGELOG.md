@@ -14,9 +14,21 @@ project uses [Semantic Versioning](https://semver.org/).
 - Multi-stage Dockerfile running as a non-root user.
 - pre-commit hooks, Makefile, LICENSE (MIT), contributing guide, issue and PR templates,
   Dependabot.
+- Typed YAML configuration (`default.yaml` in the package, overrides through
+  `YOUTUBE_RECAP_CONFIG`), validated with pydantic.
+- Logging to stderr in text or JSON format.
+- Retries with exponential backoff for timeouts, dropped connections and HTTP errors;
+  request timeouts for search and transcripts.
+- Input validation: empty queries and malformed video ids are rejected as tool errors.
+- On-disk cache for search results (1 hour) and transcripts (7 days), configurable.
+- Architecture decision records in `docs/adr/`.
 
 ### Changed
 
+- Code split into adapters, service, models and formatting (see ADR 4).
+- Tool count parameters default to config values and are clamped to configured limits.
+- A network failure on one video no longer fails a whole recap.
+- The OS trust store is installed when the server starts, not at import time.
 - Search results without a video id are dropped instead of listed as `id=None`.
 - `yt-dlp` floor raised to 2026.7.4; locked versions of anyio, cryptography, pyjwt,
   urllib3 and yt-dlp upgraded past published advisories.
