@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Context for future agent sessions working on this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Purpose
 
@@ -8,24 +8,31 @@ Context for future agent sessions working on this repo.
 fetches their transcripts, and returns them so an MCP client (Claude) can summarize.
 The server does retrieval; the *summarizing* happens client-side.
 
-## Layout
+## Architecture
 
-```
-pyproject.toml          project metadata, deps, ruff + uv config
-uv.lock                 committed lockfile
-src/youtube_recap/
-  __init__.py           re-exports main()
-  server.py             FastMCP server + the three tools
-README.md               user-facing docs
-```
+Requests flow one way: `server.py` (MCP tools) → `service.py` (`RecapService`) →
+`youtube.py` adapters → yt-dlp / youtube-transcript-api. Results flow back as the
+dataclasses in `models.py` and are turned into text by `formatting.py`.
+
+- `service.py` holds the logic (ranking, clamping counts, truncation) and depends only on
+  the `VideoSearcher` and `TranscriptSource` Protocols in `youtube.py`. Tests inject fakes
+  through the constructor; there is no monkeypatching of libraries.
+- `server.py`: `build_server(service)` registers the tools on a fresh `FastMCP`;
+  `main()` installs the OS trust store, loads config and runs stdio.
+- `config.py` + `default.yaml`: every limit and default lives in the packaged YAML.
+  User files (`YOUTUBE_RECAP_CONFIG`) are deep-merged over it and validated into frozen
+  pydantic models (`extra="forbid"`). Do not put numeric defaults in code or tool signatures;
+  tool parameters are `int | None` and `None` means "use config".
+- Adapters raise `TranscriptUnavailableError` (`errors.py`); tools turn it into a
+  `[transcript unavailable: <id>: <reason>]` line instead of an MCP error, so one missing
+  transcript never fails a whole recap.
 
 ## Environment / tooling
 
-- **uv** for everything; **Python 3.11+** (`.venv` built on 3.12).
-- Runtime deps: `mcp` (FastMCP), `yt-dlp`, `youtube-transcript-api`, `truststore`.
-- Dev deps: `ruff` (lint + format).
+- **uv** for everything; **Python 3.11+** (`.python-version` pins 3.12 for dev).
+- Dev deps: ruff, mypy (strict, pydantic plugin), pytest, pytest-cov, pre-commit.
 
-## Command cheat-sheet
+## Commands
 
 ```sh
 uv sync                     # install / update env + lockfile
@@ -33,46 +40,38 @@ uv run youtube-recap        # run the server over stdio
 uv run ruff format .        # format
 uv run ruff check .         # lint (must stay clean)
 uv run mypy                 # strict type check (src + tests)
-uv run pytest --cov         # tests; network is faked in tests/conftest.py
-uv run pytest tests/test_server.py::test_recap_keeps_top_videos_and_truncates  # one test
+uv run pytest --cov         # tests; no network
+uv run pytest tests/test_service.py::test_recap_keeps_top_videos_and_truncates  # one test
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same lint, mypy and pytest steps on Python
-3.11 to 3.13, plus `pip-audit` on the exported lockfile. A failing audit means a locked
-package has a known CVE: fix with `uv lock --upgrade-package <name>`.
+`tests/test_server.py` drives the tools through a real in-memory MCP client session
+(`mcp.shared.memory.create_connected_server_and_client_session`); async tests use the
+`anyio` marker. `make check` runs lint, mypy and tests (no `make` on Windows: run the
+`uv` lines).
 
-Smoke test (no MCP client needed — call a tool function directly):
-
-```sh
-uv run python -c "from youtube_recap import server; print(server.search_videos('lofi', 3))"
-```
+CI (`.github/workflows/ci.yml`) runs lint, mypy and pytest on Python 3.11 to 3.13, builds
+the Docker image, and runs `pip-audit` on the exported lockfile. A failing audit means a
+locked package has a known CVE: fix with `uv lock --upgrade-package <name>`.
 
 ## Hard constraints / gotchas
 
-- **This network intercepts TLS.** uv fails with `invalid peer certificate: UnknownIssuer`
-  unless it trusts the system cert store. Handled via `system-certs = true` under `[tool.uv]`
-  in `pyproject.toml` (the older name `native-tls` is deprecated in uv 0.12). Keep it.
+- **This network intercepts TLS.** uv trusts the system store through
+  `system-certs = true` under `[tool.uv]` (the older name `native-tls` is deprecated).
+  At runtime `main()` calls `truststore.inject_into_ssl()`; it patches `ssl`, urllib3 and
+  requests in place, so import order does not matter (see `docs/adr/`).
 - On this Windows machine, uv cannot extract the `pywin32` wheel (an `mcp` dependency):
   "Access is denied" when it renames the unpacked folder, likely antivirus. Workaround:
-  `uv sync --no-install-package pywin32`, then `.venv\Scripts\python -m ensurepip` and
-  `.venv\Scripts\python -m pip install pywin32==312`. After that use `uv run --no-sync`.
-- The same TLS problem hits Python at runtime. `server.py` calls `truststore.inject_into_ssl()`
-  before importing `yt_dlp` or `youtube_transcript_api`, so they use the OS trust store. Keep
-  that call above those imports (hence the `# noqa: E402` markers); ruff's import sorting
-  must not move them.
-- "Most-viewed" means most-viewed among the first N `ytsearch` results (yt-dlp search
-  with `extract_flat`, which reads metadata without loading each video page), not across
-  all of YouTube. `recap` searches `max(search_pool, num_videos)` results, then keeps the top
+  `uv sync --inexact --no-install-package pywin32`, then `.venv\Scripts\python -m ensurepip`
+  and `.venv\Scripts\python -m pip install pywin32==312`. After that use `uv run --no-sync`.
+- "Most-viewed" means most-viewed among the first N `ytsearch` results (yt-dlp flat
+  search, which reads metadata without loading each video page), not across all of
+  YouTube. `recap` searches `max(search_pool, num_videos)` results, keeps the top
   `num_videos`.
-- `pyproject.toml` sets `readme = "README.md"`, so **README.md must exist before
-  `uv sync`** can build the project, or hatchling errors out.
-- Transcripts use the `youtube-transcript-api` >=1.0 instance API (`.fetch`); missing
-  captions return a `[transcript unavailable: ...]` placeholder instead of raising.
-- `recap` truncates each transcript to `_MAX_TRANSCRIPT_CHARS` (8000) to bound token use.
+- `pyproject.toml` sets `readme = "README.md"`, so README.md must exist for the build.
+- On stdio, stdout carries the MCP protocol. Never `print`; log to stderr.
 
 ## Conventions
 
-- Public MCP tools are the `@mcp.tool()`-decorated functions in `server.py`; helpers are
-  module-private (`_name`). Keep tool docstrings useful — the client shows them to the model.
-- `uv run pre-commit install` once; the hooks run ruff, mypy and `uv lock --check`.
-  `make check` runs lint, mypy and tests (Linux/macOS; on Windows run the `uv` lines).
+- Tool docstrings are shown to the model; keep them accurate when behaviour changes.
+- `uv run pre-commit install` once; hooks run ruff, mypy and `uv lock --check`.
+- Conventional Commits, one branch per change, CHANGELOG entry under `Unreleased`.
