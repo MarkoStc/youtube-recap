@@ -71,6 +71,19 @@ class CacheConfig(_Section):
         return value.expanduser()
 
 
+class ModelConfig(_Section):
+    model: str = Field(min_length=1)
+    effort: Literal["low", "medium", "high", "xhigh", "max"]
+    max_tokens: int = Field(gt=0)
+
+
+class EvaluationConfig(_Section):
+    summarizer: ModelConfig
+    judge: ModelConfig
+    summary_max_words: int = Field(gt=0)
+    server_side_fallback: bool
+
+
 class LoggingConfig(_Section):
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     format: Literal["text", "json"]
@@ -83,6 +96,7 @@ class AppConfig(_Section):
     network: NetworkConfig
     rate_limit: RateLimitConfig
     cache: CacheConfig
+    evaluation: EvaluationConfig
     logging: LoggingConfig
 
 

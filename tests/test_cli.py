@@ -132,3 +132,41 @@ def test_cache_path_and_clear(tmp_path: Path) -> None:
     (cache_dir / "search" / "x.json").write_text("{}", encoding="utf-8")
     assert _run("--config", str(override), "cache", "path").out.strip() == str(cache_dir)
     assert "removed 1" in _run("--config", str(override), "cache", "clear").out
+
+
+def test_eval_writes_results(tmp_path: Path) -> None:
+    from tests.test_evaluation import ScriptedModel
+
+    dataset = tmp_path / "d.yaml"
+    dataset.write_text(
+        "cases:\n"
+        "  - video_id: aaaaaaaaaaa\n"
+        "    title: T\n"
+        "    key_points:\n"
+        "      - {text: hello, quote: hello}\n",
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "results"
+    out, err = io.StringIO(), io.StringIO()
+
+    def factory(config: AppConfig) -> RecapService:
+        return RecapService(config, FakeSearcher(), FakeTranscripts())
+
+    code = cli.run(
+        ["eval", "--dataset", str(dataset), "--out", str(out_dir), "--condition", "full"],
+        out,
+        err,
+        service_factory=factory,
+        model_factory=lambda cfg, fallback: ScriptedModel(cfg.model),
+    )
+    assert code == cli.EXIT_OK, err.getvalue()
+    assert "| full | 100% (1/1) |" in out.getvalue()
+    assert (out_dir / "latest.md").read_text(encoding="utf-8") == out.getvalue()
+    (run_file,) = out_dir.glob("run-*.json")
+    assert json.loads(run_file.read_text(encoding="utf-8"))["results"][0]["condition"] == "full"
+
+
+def test_eval_missing_dataset_is_a_usage_error(tmp_path: Path) -> None:
+    result = _run("eval", "--dataset", str(tmp_path / "nope.yaml"))
+    assert result.code == cli.EXIT_USAGE
+    assert "cannot read dataset" in result.err
