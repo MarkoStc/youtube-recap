@@ -61,6 +61,7 @@ jobs:
       - name: Image imports the package and runs as non-root
         run: |
           docker run --rm --entrypoint python youtube-recap:ci -c "import youtube_recap"
+          docker run --rm youtube-recap:ci --version
           test "$(docker run --rm --entrypoint id youtube-recap:ci -u)" != "0"
 
   audit:
