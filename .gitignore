@@ -24,3 +24,11 @@ dist/
 .env.*
 
 # NOTE: uv.lock is intentionally committed for reproducible installs.
+
+# Temporary file written by `make audit`
+.audit-requirements.txt
+
+# Coverage output
+.coverage
+coverage.xml
+htmlcov/

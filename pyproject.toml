@@ -18,6 +18,7 @@ youtube-recap = "youtube_recap.server:main"
 [dependency-groups]
 dev = [
     "mypy>=1.13",
+    "pre-commit>=4.0",
     "pytest>=8.3",
     "pytest-cov>=5.0",
     "ruff>=0.6.0",
