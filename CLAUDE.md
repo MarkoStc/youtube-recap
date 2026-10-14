@@ -66,14 +66,13 @@ uv run python -c "from youtube_recap import server; print(server.search_videos('
   `num_videos`.
 - `pyproject.toml` sets `readme = "README.md"`, so **README.md must exist before
   `uv sync`** can build the project, or hatchling errors out.
-- Transcript fetching tolerates both `youtube-transcript-api` >=1.0 (instance `.fetch`)
-  and older (`get_transcript`); missing captions return a `[transcript unavailable: ...]`
-  placeholder instead of raising.
+- Transcripts use the `youtube-transcript-api` >=1.0 instance API (`.fetch`); missing
+  captions return a `[transcript unavailable: ...]` placeholder instead of raising.
 - `recap` truncates each transcript to `_MAX_TRANSCRIPT_CHARS` (8000) to bound token use.
 
 ## Conventions
 
 - Public MCP tools are the `@mcp.tool()`-decorated functions in `server.py`; helpers are
   module-private (`_name`). Keep tool docstrings useful — the client shows them to the model.
-- Run `ruff format` + `ruff check` before committing; the tree must be clean.
-
+- `uv run pre-commit install` once; the hooks run ruff, mypy and `uv lock --check`.
+  `make check` runs lint, mypy and tests (Linux/macOS; on Windows run the `uv` lines).
