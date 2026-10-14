@@ -1,7 +1,7 @@
 [project]
 name = "youtube-recap"
 version = "0.1.0"
-description = "MCP server that searches YouTube, extracts transcripts, and summarizes videos."
+description = "MCP server that searches YouTube and returns transcripts for an assistant to summarize."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -22,7 +22,7 @@ dev = [
 
 [tool.uv]
 # This network intercepts TLS, so uv must trust the system certificate store.
-native-tls = true
+system-certs = true
 
 [build-system]
 requires = ["hatchling"]
