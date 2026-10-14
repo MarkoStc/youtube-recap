@@ -45,6 +45,24 @@ jobs:
         if: matrix.python-version == '3.12'
         run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: youtube-recap:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Image imports the package and runs as non-root
+        run: |
+          docker run --rm --entrypoint python youtube-recap:ci -c "import youtube_recap"
+          test "$(docker run --rm --entrypoint id youtube-recap:ci -u)" != "0"
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
