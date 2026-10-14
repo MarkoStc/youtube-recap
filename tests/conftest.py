@@ -76,6 +76,7 @@ class FakeYoutubeDL:
         self.entries = entries
         self.urls: list[str] = []
         self.options: dict[str, Any] = {}
+        self.error: Exception | None = None
 
     def __call__(self, options: dict[str, Any]) -> FakeYoutubeDL:
         self.options = options
@@ -89,6 +90,8 @@ class FakeYoutubeDL:
 
     def extract_info(self, url: str, download: bool = False) -> dict[str, Any] | None:
         self.urls.append(url)
+        if self.error is not None:
+            raise self.error
         return None if self.entries is None else {"entries": self.entries}
 
 

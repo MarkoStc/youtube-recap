@@ -6,35 +6,61 @@ from collections.abc import Iterable
 from typing import Any
 
 import pytest
-from youtube_transcript_api import FetchedTranscript, FetchedTranscriptSnippet, TranscriptsDisabled
+import requests
+from youtube_transcript_api import (
+    FetchedTranscript,
+    FetchedTranscriptSnippet,
+    TranscriptsDisabled,
+)
+from yt_dlp.utils import DownloadError
 
 from tests.conftest import FakeYoutubeDL
-from youtube_recap.errors import TranscriptUnavailableError
-from youtube_recap.youtube import YouTubeTranscriptSource, YtDlpSearcher
+from youtube_recap.errors import TranscriptUnavailableError, YouTubeUnavailableError
+from youtube_recap.retry import RetryPolicy
+from youtube_recap.youtube import TimeoutSession, YouTubeTranscriptSource, YtDlpSearcher
+
+TIMEOUT = 5.0
 
 
-def test_searcher_builds_ytsearch_url_and_flat_options() -> None:
+@pytest.fixture
+def retry() -> RetryPolicy:
+    return RetryPolicy(
+        attempts=2, initial_backoff=0, max_backoff=0, multiplier=1, sleep=lambda _: None
+    )
+
+
+def test_searcher_builds_ytsearch_url_and_options(retry: RetryPolicy) -> None:
     fake = FakeYoutubeDL([{"id": "a", "title": "A"}, {"title": "no id"}])
-    videos = YtDlpSearcher(fake).search("cats", 2)
+    videos = YtDlpSearcher(retry, TIMEOUT, fake).search("cats", 2)
     assert fake.urls == ["ytsearch2:cats"]
     assert fake.options["extract_flat"] is True
+    assert fake.options["socket_timeout"] == TIMEOUT
     assert [v.id for v in videos] == ["a"]
 
 
-def test_searcher_handles_empty_info() -> None:
-    assert YtDlpSearcher(FakeYoutubeDL(None)).search("q", 3) == []
+def test_searcher_handles_empty_info(retry: RetryPolicy) -> None:
+    assert YtDlpSearcher(retry, TIMEOUT, FakeYoutubeDL(None)).search("q", 3) == []
+
+
+def test_searcher_retries_then_raises_unavailable(retry: RetryPolicy) -> None:
+    fake = FakeYoutubeDL([])
+    fake.error = DownloadError("network down")
+    with pytest.raises(YouTubeUnavailableError, match="network down"):
+        YtDlpSearcher(retry, TIMEOUT, fake).search("q", 1)
+    assert len(fake.urls) == retry.attempts
 
 
 class FakeApi:
-    def __init__(self, result: FetchedTranscript | Exception) -> None:
-        self.result = result
+    def __init__(self, *results: FetchedTranscript | Exception) -> None:
+        self.results = list(results)
         self.calls: list[tuple[str, list[str]]] = []
 
     def fetch(self, video_id: str, languages: Iterable[str] = ("en",)) -> FetchedTranscript:
         self.calls.append((video_id, list(languages)))
-        if isinstance(self.result, Exception):
-            raise self.result
-        return self.result
+        result = self.results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 def _fetched(texts: list[str], language_code: str = "en") -> FetchedTranscript:
@@ -50,18 +76,44 @@ def _fetched(texts: list[str], language_code: str = "en") -> FetchedTranscript:
     )
 
 
-def test_transcript_source_joins_snippets() -> None:
-    api = FakeApi(_fetched(["hello", "world"], "de"))
-    transcript = YouTubeTranscriptSource(api).fetch("vid", ["de", "en"])  # type: ignore[arg-type]
+def test_transcript_source_joins_snippets(retry: RetryPolicy) -> None:
+    api: Any = FakeApi(_fetched(["hello", "world"], "de"))
+    transcript = YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["de", "en"])
     assert transcript.text == "hello world"
     assert transcript.language_code == "de"
     assert transcript.is_generated is True
     assert api.calls == [("vid", ["de", "en"])]
 
 
-def test_transcript_source_wraps_library_errors() -> None:
+def test_transcript_source_wraps_library_errors_without_retry(retry: RetryPolicy) -> None:
     api: Any = FakeApi(TranscriptsDisabled("vid"))
     with pytest.raises(TranscriptUnavailableError) as info:
-        YouTubeTranscriptSource(api).fetch("vid", ["en"])
+        YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"])
     assert info.value.reason == "TranscriptsDisabled"
-    assert info.value.video_id == "vid"
+    assert len(api.calls) == 1
+
+
+def test_transcript_source_retries_timeouts(retry: RetryPolicy) -> None:
+    api: Any = FakeApi(requests.Timeout("slow"), _fetched(["ok"]))
+    assert YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"]).text == "ok"
+    assert len(api.calls) == 2
+
+
+def test_transcript_source_gives_up_on_repeated_connection_errors(retry: RetryPolicy) -> None:
+    api: Any = FakeApi(requests.ConnectionError("a"), requests.ConnectionError("b"))
+    with pytest.raises(YouTubeUnavailableError):
+        YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"])
+
+
+def test_timeout_session_sets_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake_request(self: requests.Session, *args: Any, **kwargs: Any) -> str:
+        seen.update(kwargs)
+        return "response"
+
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+    TimeoutSession(3.0).get("https://example.invalid")
+    assert seen["timeout"] == 3.0
+    TimeoutSession(3.0).get("https://example.invalid", timeout=1)
+    assert seen["timeout"] == 1
