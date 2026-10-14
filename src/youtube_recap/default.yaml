@@ -14,6 +14,9 @@ recap:
 
 transcripts:
   languages: [en]        # preferred transcript languages, in order
+  # When none of those exist: "translate" (YouTube machine translation into the first
+  # language, else the original), "original" (first available language), or "none".
+  fallback: translate
 
 network:
   timeout_seconds: 20    # per HTTP request (yt-dlp socket timeout, transcript requests)

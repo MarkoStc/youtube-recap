@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import requests
 import yt_dlp
 from youtube_transcript_api import (
+    FetchedTranscript,
+    NoTranscriptFound,
     YouTubeRequestFailed,
     YouTubeTranscriptApi,
     YouTubeTranscriptApiException,
@@ -113,24 +115,38 @@ class YouTubeHttpSession(requests.Session):
         return super().request(*args, **kwargs)
 
 
+FallbackMode = Literal["translate", "original", "none"]
+
+
 class YouTubeTranscriptSource:
-    """Fetches captions with youtube-transcript-api."""
+    """Fetches captions with youtube-transcript-api.
+
+    Tries the requested languages in order (manually created captions before generated
+    ones). If none exist, ``fallback`` decides what happens:
+
+    - ``translate``: use YouTube's machine translation of an existing transcript into the
+      first requested language; if no transcript can be translated, use ``original``.
+    - ``original``: return the first available transcript in its own language.
+    - ``none``: report the transcript as unavailable.
+    """
 
     def __init__(
         self,
         retry: RetryPolicy,
         timeout_seconds: float,
         limiter: Limiter | None = None,
+        fallback: FallbackMode = "translate",
         api: YouTubeTranscriptApi | None = None,
     ) -> None:
         self._retry = retry
+        self._fallback = fallback
         session = YouTubeHttpSession(timeout_seconds, limiter)
         self._api = api or YouTubeTranscriptApi(http_client=session)
 
     def fetch(self, video_id: str, languages: Sequence[str]) -> Transcript:
         try:
-            fetched = self._retry.call(
-                lambda: self._api.fetch(video_id, languages=languages),
+            fetched, translated_from = self._retry.call(
+                lambda: self._fetch_with_fallback(video_id, languages),
                 retry_on=_TRANSIENT_TRANSCRIPT_ERRORS,
                 description=f"transcript {video_id}",
             )
@@ -138,10 +154,38 @@ class YouTubeTranscriptSource:
             raise YouTubeUnavailableError(f"transcript {video_id}: {exc!r}") from exc
         except YouTubeTranscriptApiException as exc:
             raise TranscriptUnavailableError(video_id, type(exc).__name__) from exc
-        logger.info("transcript %s lang=%s", video_id, fetched.language_code)
+        logger.info(
+            "transcript %s lang=%s translated_from=%s",
+            video_id,
+            fetched.language_code,
+            translated_from,
+        )
         return Transcript(
             video_id=video_id,
             language_code=fetched.language_code,
             text=" ".join(snippet.text for snippet in fetched),
             is_generated=fetched.is_generated,
+            translated_from=translated_from,
         )
+
+    def _fetch_with_fallback(
+        self, video_id: str, languages: Sequence[str]
+    ) -> tuple[FetchedTranscript, str | None]:
+        """Return the fetched transcript and, if translated, the source language code."""
+        available = self._api.list(video_id)
+        try:
+            return available.find_transcript(languages).fetch(), None
+        except NoTranscriptFound:
+            if self._fallback == "none":
+                raise
+            transcripts = list(available)
+            if not transcripts:
+                raise
+        if self._fallback == "translate":
+            target = languages[0]
+            for transcript in transcripts:
+                codes = {t.language_code for t in transcript.translation_languages}
+                if transcript.is_translatable and target in codes:
+                    translated = transcript.translate(target).fetch()
+                    return translated, transcript.language_code
+        return transcripts[0].fetch(), None

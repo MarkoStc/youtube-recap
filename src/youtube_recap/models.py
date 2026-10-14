@@ -40,12 +40,17 @@ class Video:
 
 @dataclass(frozen=True, slots=True)
 class Transcript:
-    """Plain text of one video's captions."""
+    """Plain text of one video's captions.
+
+    ``translated_from`` is the source language code when YouTube machine-translated the
+    captions into ``language_code``; otherwise None.
+    """
 
     video_id: str
     language_code: str
     text: str
     is_generated: bool
+    translated_from: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

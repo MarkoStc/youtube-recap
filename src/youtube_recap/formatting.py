@@ -37,7 +37,18 @@ def format_video_list(query: str, videos: Sequence[Video]) -> str:
     )
 
 
-def format_transcript(transcript: Transcript) -> str:
+def language_note(transcript: Transcript) -> str:
+    """Describe the transcript language, e.g. ``en (auto-translated from de)``."""
+    if transcript.translated_from:
+        return f"{transcript.language_code} (auto-translated from {transcript.translated_from})"
+    return transcript.language_code
+
+
+def format_transcript(transcript: Transcript, requested: Sequence[str]) -> str:
+    """Return the text, prefixed with a language note when it is not a requested language
+    or was machine-translated, so the model knows what it is reading."""
+    if transcript.translated_from or transcript.language_code not in requested:
+        return f"[language: {language_note(transcript)}]\n\n{transcript.text}"
     return transcript.text
 
 
@@ -56,6 +67,9 @@ def _format_item(item: RecapItem) -> str:
     header = f"## {v.title}\n{v.url} | views={format_views(v.view_count)} | channel={v.channel}"
     if item.transcript is None:
         body = format_unavailable(v.id, item.unavailable_reason or "unknown reason")
-    else:
-        body = item.transcript.text
+        return f"{header}\n\n{body}"
+    header += f" | language={language_note(item.transcript)}"
+    body = item.transcript.text
+    if item.truncated:
+        body += f"\n\n[transcript cut after {len(item.transcript.text):,} characters]"
     return f"{header}\n\n{body}"

@@ -22,6 +22,10 @@ project uses [Semantic Versioning](https://semver.org/).
 - Input validation: empty queries and malformed video ids are rejected as tool errors.
 - On-disk cache for search results (1 hour) and transcripts (7 days), configurable.
 - Architecture decision records in `docs/adr/`.
+- Transcript language fallback (`transcripts.fallback`): when no requested language
+  exists, use YouTube's machine translation, else the original language. Output says
+  which language was returned and whether it was translated.
+- Recap output marks cut transcripts (`[transcript cut after N characters]`).
 - Token-bucket rate limit shared by all requests to YouTube (default 2 per second,
   bursts of 5), configurable under `rate_limit`.
 
