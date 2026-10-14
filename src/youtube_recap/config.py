@@ -52,6 +52,12 @@ class NetworkConfig(_Section):
     retry: RetryConfig
 
 
+class RateLimitConfig(_Section):
+    enabled: bool
+    requests_per_second: float = Field(gt=0)
+    burst: int = Field(ge=1)
+
+
 class CacheConfig(_Section):
     enabled: bool
     directory: Path
@@ -74,6 +80,7 @@ class AppConfig(_Section):
     recap: RecapConfig
     transcripts: TranscriptConfig
     network: NetworkConfig
+    rate_limit: RateLimitConfig
     cache: CacheConfig
     logging: LoggingConfig
 

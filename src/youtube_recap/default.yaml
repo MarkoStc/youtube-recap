@@ -24,6 +24,11 @@ network:
     max_backoff_seconds: 10.0
     multiplier: 2.0
 
+rate_limit:               # shared by search and transcript requests to YouTube
+  enabled: true
+  requests_per_second: 2.0
+  burst: 5                 # requests allowed back to back before the rate applies
+
 cache:
   enabled: true
   directory: ~/.cache/youtube-recap

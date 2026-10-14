@@ -21,6 +21,7 @@ from youtube_recap.cache import CachedSearcher, CachedTranscripts, DiskCache
 from youtube_recap.config import AppConfig, load_config
 from youtube_recap.errors import TranscriptUnavailableError
 from youtube_recap.log import configure_logging
+from youtube_recap.ratelimit import NoRateLimit, RateLimiter
 from youtube_recap.retry import RetryPolicy
 from youtube_recap.service import RecapService
 from youtube_recap.youtube import (
@@ -76,8 +77,10 @@ def build_service(config: AppConfig) -> RecapService:
     """Wire the real YouTube adapters with ``config``."""
     net = config.network
     retry = RetryPolicy.from_config(net.retry)
-    searcher: VideoSearcher = YtDlpSearcher(retry, net.timeout_seconds)
-    transcripts: TranscriptSource = YouTubeTranscriptSource(retry, net.timeout_seconds)
+    rl = config.rate_limit
+    limiter = RateLimiter(rl.requests_per_second, rl.burst) if rl.enabled else NoRateLimit()
+    searcher: VideoSearcher = YtDlpSearcher(retry, net.timeout_seconds, limiter)
+    transcripts: TranscriptSource = YouTubeTranscriptSource(retry, net.timeout_seconds, limiter)
     if config.cache.enabled:
         cache = DiskCache(config.cache.directory)
         searcher = CachedSearcher(searcher, cache, config.cache.search_ttl_seconds)

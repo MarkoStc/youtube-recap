@@ -17,7 +17,7 @@ from yt_dlp.utils import DownloadError
 from tests.conftest import FakeYoutubeDL
 from youtube_recap.errors import TranscriptUnavailableError, YouTubeUnavailableError
 from youtube_recap.retry import RetryPolicy
-from youtube_recap.youtube import TimeoutSession, YouTubeTranscriptSource, YtDlpSearcher
+from youtube_recap.youtube import YouTubeHttpSession, YouTubeTranscriptSource, YtDlpSearcher
 
 TIMEOUT = 5.0
 
@@ -31,7 +31,7 @@ def retry() -> RetryPolicy:
 
 def test_searcher_builds_ytsearch_url_and_options(retry: RetryPolicy) -> None:
     fake = FakeYoutubeDL([{"id": "a", "title": "A"}, {"title": "no id"}])
-    videos = YtDlpSearcher(retry, TIMEOUT, fake).search("cats", 2)
+    videos = YtDlpSearcher(retry, TIMEOUT, ydl_factory=fake).search("cats", 2)
     assert fake.urls == ["ytsearch2:cats"]
     assert fake.options["extract_flat"] is True
     assert fake.options["socket_timeout"] == TIMEOUT
@@ -39,14 +39,14 @@ def test_searcher_builds_ytsearch_url_and_options(retry: RetryPolicy) -> None:
 
 
 def test_searcher_handles_empty_info(retry: RetryPolicy) -> None:
-    assert YtDlpSearcher(retry, TIMEOUT, FakeYoutubeDL(None)).search("q", 3) == []
+    assert YtDlpSearcher(retry, TIMEOUT, ydl_factory=FakeYoutubeDL(None)).search("q", 3) == []
 
 
 def test_searcher_retries_then_raises_unavailable(retry: RetryPolicy) -> None:
     fake = FakeYoutubeDL([])
     fake.error = DownloadError("network down")
     with pytest.raises(YouTubeUnavailableError, match="network down"):
-        YtDlpSearcher(retry, TIMEOUT, fake).search("q", 1)
+        YtDlpSearcher(retry, TIMEOUT, ydl_factory=fake).search("q", 1)
     assert len(fake.urls) == retry.attempts
 
 
@@ -78,7 +78,7 @@ def _fetched(texts: list[str], language_code: str = "en") -> FetchedTranscript:
 
 def test_transcript_source_joins_snippets(retry: RetryPolicy) -> None:
     api: Any = FakeApi(_fetched(["hello", "world"], "de"))
-    transcript = YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["de", "en"])
+    transcript = YouTubeTranscriptSource(retry, TIMEOUT, api=api).fetch("vid", ["de", "en"])
     assert transcript.text == "hello world"
     assert transcript.language_code == "de"
     assert transcript.is_generated is True
@@ -88,24 +88,24 @@ def test_transcript_source_joins_snippets(retry: RetryPolicy) -> None:
 def test_transcript_source_wraps_library_errors_without_retry(retry: RetryPolicy) -> None:
     api: Any = FakeApi(TranscriptsDisabled("vid"))
     with pytest.raises(TranscriptUnavailableError) as info:
-        YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"])
+        YouTubeTranscriptSource(retry, TIMEOUT, api=api).fetch("vid", ["en"])
     assert info.value.reason == "TranscriptsDisabled"
     assert len(api.calls) == 1
 
 
 def test_transcript_source_retries_timeouts(retry: RetryPolicy) -> None:
     api: Any = FakeApi(requests.Timeout("slow"), _fetched(["ok"]))
-    assert YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"]).text == "ok"
+    assert YouTubeTranscriptSource(retry, TIMEOUT, api=api).fetch("vid", ["en"]).text == "ok"
     assert len(api.calls) == 2
 
 
 def test_transcript_source_gives_up_on_repeated_connection_errors(retry: RetryPolicy) -> None:
     api: Any = FakeApi(requests.ConnectionError("a"), requests.ConnectionError("b"))
     with pytest.raises(YouTubeUnavailableError):
-        YouTubeTranscriptSource(retry, TIMEOUT, api).fetch("vid", ["en"])
+        YouTubeTranscriptSource(retry, TIMEOUT, api=api).fetch("vid", ["en"])
 
 
-def test_timeout_session_sets_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_http_session_sets_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, Any] = {}
 
     def fake_request(self: requests.Session, *args: Any, **kwargs: Any) -> str:
@@ -113,7 +113,34 @@ def test_timeout_session_sets_default_timeout(monkeypatch: pytest.MonkeyPatch) -
         return "response"
 
     monkeypatch.setattr(requests.Session, "request", fake_request)
-    TimeoutSession(3.0).get("https://example.invalid")
+    YouTubeHttpSession(3.0).get("https://example.invalid")
     assert seen["timeout"] == 3.0
-    TimeoutSession(3.0).get("https://example.invalid", timeout=1)
+    YouTubeHttpSession(3.0).get("https://example.invalid", timeout=1)
     assert seen["timeout"] == 1
+
+
+class CountingLimiter:
+    def __init__(self) -> None:
+        self.count = 0
+
+    def acquire(self) -> float:
+        self.count += 1
+        return 0.0
+
+
+def test_searcher_acquires_limiter_per_attempt(retry: RetryPolicy) -> None:
+    fake = FakeYoutubeDL([])
+    fake.error = DownloadError("down")
+    limiter = CountingLimiter()
+    with pytest.raises(YouTubeUnavailableError):
+        YtDlpSearcher(retry, TIMEOUT, limiter, ydl_factory=fake).search("q", 1)
+    assert limiter.count == retry.attempts
+
+
+def test_http_session_acquires_limiter_per_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(requests.Session, "request", lambda self, *a, **k: "response")
+    limiter = CountingLimiter()
+    session = YouTubeHttpSession(3.0, limiter)
+    session.get("https://example.invalid")
+    session.post("https://example.invalid")
+    assert limiter.count == 2

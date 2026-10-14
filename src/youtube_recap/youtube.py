@@ -22,6 +22,7 @@ from yt_dlp.utils import DownloadError
 
 from youtube_recap.errors import TranscriptUnavailableError, YouTubeUnavailableError
 from youtube_recap.models import Transcript, Video
+from youtube_recap.ratelimit import NoRateLimit
 from youtube_recap.retry import RetryPolicy
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,12 @@ _TRANSIENT_TRANSCRIPT_ERRORS: tuple[type[BaseException], ...] = (
     requests.Timeout,
     YouTubeRequestFailed,
 )
+
+
+class Limiter(Protocol):
+    def acquire(self) -> float:
+        """Block until one more request is allowed; return the seconds waited."""
+        ...
 
 
 class VideoSearcher(Protocol):
@@ -63,9 +70,11 @@ class YtDlpSearcher:
         self,
         retry: RetryPolicy,
         timeout_seconds: float,
+        limiter: Limiter | None = None,
         ydl_factory: Callable[[dict[str, Any]], Any] | None = None,
     ) -> None:
         self._retry = retry
+        self._limiter = limiter or NoRateLimit()
         self._options = {**self._BASE_OPTIONS, "socket_timeout": timeout_seconds}
         self._ydl_factory = ydl_factory or yt_dlp.YoutubeDL
 
@@ -84,20 +93,23 @@ class YtDlpSearcher:
         return videos
 
     def _extract(self, url: str) -> dict[str, Any] | None:
+        self._limiter.acquire()
         with self._ydl_factory(dict(self._options)) as ydl:
             info: dict[str, Any] | None = ydl.extract_info(url, download=False)
             return info
 
 
-class TimeoutSession(requests.Session):
-    """A requests Session that applies a default timeout to every request."""
+class YouTubeHttpSession(requests.Session):
+    """A requests Session with a default timeout and a rate limit on every request."""
 
-    def __init__(self, timeout_seconds: float) -> None:
+    def __init__(self, timeout_seconds: float, limiter: Limiter | None = None) -> None:
         super().__init__()
         self._timeout = timeout_seconds
+        self._limiter = limiter or NoRateLimit()
 
     def request(self, *args: Any, **kwargs: Any) -> requests.Response:
         kwargs.setdefault("timeout", self._timeout)
+        self._limiter.acquire()
         return super().request(*args, **kwargs)
 
 
@@ -108,10 +120,12 @@ class YouTubeTranscriptSource:
         self,
         retry: RetryPolicy,
         timeout_seconds: float,
+        limiter: Limiter | None = None,
         api: YouTubeTranscriptApi | None = None,
     ) -> None:
         self._retry = retry
-        self._api = api or YouTubeTranscriptApi(http_client=TimeoutSession(timeout_seconds))
+        session = YouTubeHttpSession(timeout_seconds, limiter)
+        self._api = api or YouTubeTranscriptApi(http_client=session)
 
     def fetch(self, video_id: str, languages: Sequence[str]) -> Transcript:
         try:

@@ -22,6 +22,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - Input validation: empty queries and malformed video ids are rejected as tool errors.
 - On-disk cache for search results (1 hour) and transcripts (7 days), configurable.
 - Architecture decision records in `docs/adr/`.
+- Token-bucket rate limit shared by all requests to YouTube (default 2 per second,
+  bursts of 5), configurable under `rate_limit`.
 
 ### Changed
 
