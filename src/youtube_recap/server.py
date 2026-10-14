@@ -23,10 +23,15 @@ import yt_dlp  # noqa: E402  (must follow inject_into_ssl)
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 from youtube_transcript_api import YouTubeTranscriptApi  # noqa: E402
 
-mcp = FastMCP("youtube-recap")
+from youtube_recap.config import load_config  # noqa: E402
 
-# Cap transcript length per video so a multi-video recap stays within a sane token budget.
-_MAX_TRANSCRIPT_CHARS = 8000
+mcp = FastMCP("youtube-recap")
+config = load_config()
+
+
+def _clamp(value: int | None, default: int, upper: int) -> int:
+    """Use ``default`` when ``value`` is None, then keep the result within 1..``upper``."""
+    return max(1, min(default if value is None else value, upper))
 
 
 def _search(query: str, limit: int) -> list[dict[str, Any]]:
@@ -81,12 +86,14 @@ def _ranked_by_views(query: str, limit: int) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def search_videos(query: str, max_results: int = 10) -> str:
+def search_videos(query: str, max_results: int | None = None) -> str:
     """Search YouTube and list matching videos with view counts, channel, and duration.
 
     Results are ranked most-viewed first so you can choose which videos to recap.
+    ``max_results`` defaults to the configured value and is capped by the configured maximum.
     """
-    entries = _ranked_by_views(query, max_results)
+    limit = _clamp(max_results, config.search.default_results, config.search.max_results)
+    entries = _ranked_by_views(query, limit)
     if not entries:
         return f"No results for {query!r}."
     lines = [
@@ -102,23 +109,27 @@ def search_videos(query: str, max_results: int = 10) -> str:
 @mcp.tool()
 def get_transcript(video_id: str, languages: list[str] | None = None) -> str:
     """Fetch the full plain-text transcript for a single YouTube video id."""
-    return _fetch_transcript(video_id, languages or ["en"])
+    return _fetch_transcript(video_id, languages or list(config.transcripts.languages))
 
 
 @mcp.tool()
-def recap(query: str, num_videos: int = 3, search_pool: int = 10) -> str:
+def recap(query: str, num_videos: int | None = None, search_pool: int | None = None) -> str:
     """Search YouTube, keep the most-viewed videos, and return their transcripts to summarize.
 
     Searches ``search_pool`` results, keeps the top ``num_videos`` by view count, and returns
-    each (truncated) transcript so you can read and summarize them.
+    each (truncated) transcript so you can read and summarize them. Both counts default to
+    the configured values.
     """
-    entries = _ranked_by_views(query, max(search_pool, num_videos))[:num_videos]
+    count = _clamp(num_videos, config.recap.default_videos, config.recap.max_videos)
+    pool = _clamp(search_pool, config.recap.default_search_pool, config.search.max_results)
+    entries = _ranked_by_views(query, max(pool, count))[:count]
     if not entries:
         return f"No results for {query!r}."
     blocks = []
     for e in entries:
         vid = str(e["id"])
-        transcript = _fetch_transcript(vid, ["en"])[:_MAX_TRANSCRIPT_CHARS]
+        text = _fetch_transcript(vid, list(config.transcripts.languages))
+        transcript = text[: config.recap.max_transcript_chars]
         blocks.append(
             f"## {e.get('title', 'Untitled')}\n"
             f"https://youtu.be/{vid} | views={_format_views(e.get('view_count'))} | "
