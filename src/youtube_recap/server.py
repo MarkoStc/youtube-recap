@@ -11,6 +11,8 @@ The summarizing itself is done by the MCP client (Claude) reading the returned t
 
 from __future__ import annotations
 
+from typing import Any
+
 import truststore
 
 # Route TLS verification through the OS trust store before importing any networking
@@ -27,7 +29,7 @@ mcp = FastMCP("youtube-recap")
 _MAX_TRANSCRIPT_CHARS = 8000
 
 
-def _search(query: str, limit: int) -> list[dict]:
+def _search(query: str, limit: int) -> list[dict[str, Any]]:
     """Return flat metadata for the top ``limit`` YouTube results for ``query``."""
     opts = {
         "quiet": True,
@@ -39,26 +41,19 @@ def _search(query: str, limit: int) -> list[dict]:
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
-    return info.get("entries", []) if info else []
-
-
-def _snippet_text(snippet: object) -> str:
-    """Extract text from a transcript snippet across youtube-transcript-api versions."""
-    return snippet.text if hasattr(snippet, "text") else snippet["text"]
+    if not info:
+        return []
+    # Results without an id cannot be linked or transcribed; drop them here.
+    return [e for e in info.get("entries") or [] if e.get("id")]
 
 
 def _fetch_transcript(video_id: str, languages: list[str]) -> str:
     """Return the plain-text transcript for a video, or a placeholder on failure."""
     try:
-        try:
-            # youtube-transcript-api >= 1.0 uses an instance method.
-            snippets = YouTubeTranscriptApi().fetch(video_id, languages=languages)
-        except AttributeError:
-            # Older releases exposed a static get_transcript.
-            snippets = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
+        snippets = YouTubeTranscriptApi().fetch(video_id, languages=languages)
     except Exception as exc:  # no transcript, disabled, region-locked, ...
         return f"[transcript unavailable: {exc}]"
-    return " ".join(_snippet_text(s) for s in snippets)
+    return " ".join(s.text for s in snippets)
 
 
 def _format_views(views: int | None) -> str:
@@ -74,11 +69,11 @@ def _format_duration(seconds: float | None) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
-def _channel_of(entry: dict) -> str:
-    return entry.get("channel") or entry.get("uploader") or "unknown"
+def _channel_of(entry: dict[str, Any]) -> str:
+    return str(entry.get("channel") or entry.get("uploader") or "unknown")
 
 
-def _ranked_by_views(query: str, limit: int) -> list[dict]:
+def _ranked_by_views(query: str, limit: int) -> list[dict[str, Any]]:
     """Search and return entries sorted by view count, most-viewed first."""
     entries = _search(query, limit)
     entries.sort(key=lambda e: e.get("view_count") or 0, reverse=True)
@@ -122,7 +117,7 @@ def recap(query: str, num_videos: int = 3, search_pool: int = 10) -> str:
         return f"No results for {query!r}."
     blocks = []
     for e in entries:
-        vid = e.get("id")
+        vid = str(e["id"])
         transcript = _fetch_transcript(vid, ["en"])[:_MAX_TRANSCRIPT_CHARS]
         blocks.append(
             f"## {e.get('title', 'Untitled')}\n"
