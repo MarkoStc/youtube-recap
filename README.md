@@ -36,10 +36,10 @@ uv run python -c "from youtube_recap import server; print(server.search_videos('
 
 ## Use it from Claude Code
 
-Register the server (run from this project directory):
+Register the server. Replace `/path/to/youtube-recap` with the folder you cloned:
 
 ```sh
-claude mcp add youtube-recap -- uv run --directory "C:/Users/Master/Desktop/EPFL/mcp" youtube-recap
+claude mcp add youtube-recap -- uv run --directory /path/to/youtube-recap youtube-recap
 ```
 
 Then ask, e.g.: *"Search YouTube for 'how transformers work' and recap the top 3 videos."*
