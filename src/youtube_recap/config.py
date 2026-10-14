@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -39,10 +39,30 @@ class TranscriptConfig(_Section):
     languages: tuple[str, ...] = Field(min_length=1)
 
 
+class RetryConfig(_Section):
+    attempts: int = Field(ge=1)
+    initial_backoff_seconds: float = Field(ge=0)
+    max_backoff_seconds: float = Field(ge=0)
+    multiplier: float = Field(ge=1)
+
+
+class NetworkConfig(_Section):
+    timeout_seconds: float = Field(gt=0)
+    use_os_trust_store: bool
+    retry: RetryConfig
+
+
+class LoggingConfig(_Section):
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+    format: Literal["text", "json"]
+
+
 class AppConfig(_Section):
     search: SearchConfig
     recap: RecapConfig
     transcripts: TranscriptConfig
+    network: NetworkConfig
+    logging: LoggingConfig
 
 
 class ConfigError(ValueError):

@@ -14,3 +14,16 @@ recap:
 
 transcripts:
   languages: [en]        # preferred transcript languages, in order
+
+network:
+  timeout_seconds: 20    # per HTTP request (yt-dlp socket timeout, transcript requests)
+  use_os_trust_store: true  # verify TLS with the OS certificate store (truststore)
+  retry:
+    attempts: 3          # total tries for transient failures (timeouts, 5xx, 429)
+    initial_backoff_seconds: 1.0
+    max_backoff_seconds: 10.0
+    multiplier: 2.0
+
+logging:
+  level: INFO            # DEBUG, INFO, WARNING, ERROR
+  format: text           # text or json; always written to stderr
