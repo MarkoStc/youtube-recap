@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.2.0",
-    "yt-dlp>=2024.1.0",
+    "yt-dlp>=2026.7.4",
     "youtube-transcript-api>=1.0.0",
     # Make Python's ssl use the OS trust store (this network intercepts TLS).
     "truststore>=0.9.0",
