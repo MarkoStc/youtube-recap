@@ -32,7 +32,14 @@ uv sync                     # install / update env + lockfile
 uv run youtube-recap        # run the server over stdio
 uv run ruff format .        # format
 uv run ruff check .         # lint (must stay clean)
+uv run mypy                 # strict type check (src + tests)
+uv run pytest --cov         # tests; network is faked in tests/conftest.py
+uv run pytest tests/test_server.py::test_recap_keeps_top_videos_and_truncates  # one test
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same lint, mypy and pytest steps on Python
+3.11 to 3.13, plus `pip-audit` on the exported lockfile. A failing audit means a locked
+package has a known CVE: fix with `uv lock --upgrade-package <name>`.
 
 Smoke test (no MCP client needed — call a tool function directly):
 
@@ -70,6 +77,3 @@ uv run python -c "from youtube_recap import server; print(server.search_videos('
   module-private (`_name`). Keep tool docstrings useful — the client shows them to the model.
 - Run `ruff format` + `ruff check` before committing; the tree must be clean.
 
-## Out of scope (by request)
-
-No CI, Docker, pre-commit, or test framework yet — baseline is intentionally lean.
