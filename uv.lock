@@ -1501,6 +1501,18 @@ wheels = [
 ]
 
 [[package]]
+name = "types-requests"
+version = "2.33.0.20261006"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/57/15/9b7e2e2e7c87d01366185b198b3febc6bc0c973f2bf21a62da4ab7d3495e/types_requests-2.33.0.20261006.tar.gz", hash = "sha256:0652999e9306aea345f40732d58fa49a7f6cade6a0d74d92119c5c8d82eddaf0", size = 25316, upload-time = "2026-10-06T08:15:57.782Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/72/b82789207b3d360ce9f5a4372c790c52cc3dd928aeb7d4faeec652b651b2/types_requests-2.33.0.20261006-py3-none-any.whl", hash = "sha256:26cc8146505cab33cda9737991929e4144c559bebe05078ccc6998f27c4ca2c1", size = 21445, upload-time = "2026-10-06T08:15:56.658Z" },
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1587,6 +1599,7 @@ dependencies = [
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "truststore" },
     { name = "youtube-transcript-api" },
     { name = "yt-dlp" },
@@ -1600,6 +1613,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "types-pyyaml" },
+    { name = "types-requests" },
 ]
 
 [package.metadata]
@@ -1607,6 +1621,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.2.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", specifier = ">=2.32" },
     { name = "truststore", specifier = ">=0.9.0" },
     { name = "youtube-transcript-api", specifier = ">=1.0.0" },
     { name = "yt-dlp", specifier = ">=2026.7.4" },
@@ -1620,6 +1635,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "ruff", specifier = ">=0.6.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
+    { name = "types-requests", specifier = ">=2.32" },
 ]
 
 [[package]]

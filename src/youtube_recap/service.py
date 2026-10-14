@@ -2,13 +2,38 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import Sequence
 from dataclasses import replace
 
 from youtube_recap.config import AppConfig
-from youtube_recap.errors import TranscriptUnavailableError
+from youtube_recap.errors import (
+    InvalidInputError,
+    TranscriptUnavailableError,
+    YouTubeUnavailableError,
+)
 from youtube_recap.models import RecapItem, Transcript, Video
 from youtube_recap.youtube import TranscriptSource, VideoSearcher
+
+logger = logging.getLogger(__name__)
+
+# YouTube video ids are 11 characters from the URL-safe base64 alphabet.
+_VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+
+
+def validate_query(query: str) -> str:
+    stripped = query.strip()
+    if not stripped:
+        raise InvalidInputError("query must not be empty")
+    return stripped
+
+
+def validate_video_id(video_id: str) -> str:
+    stripped = video_id.strip()
+    if not _VIDEO_ID.fullmatch(stripped):
+        raise InvalidInputError(f"not a YouTube video id: {video_id!r} (expected 11 characters)")
+    return stripped
 
 
 def _clamp(value: int | None, default: int, upper: int) -> int:
@@ -35,11 +60,13 @@ class RecapService:
         limit = _clamp(
             max_results, self._config.search.default_results, self._config.search.max_results
         )
-        return self._ranked(query, limit)
+        return self._ranked(validate_query(query), limit)
 
     def transcript(self, video_id: str, languages: Sequence[str] | None = None) -> Transcript:
         """Return the full transcript, or raise :class:`TranscriptUnavailableError`."""
-        return self._transcripts.fetch(video_id, languages or self._config.transcripts.languages)
+        return self._transcripts.fetch(
+            validate_video_id(video_id), languages or self._config.transcripts.languages
+        )
 
     def recap(
         self, query: str, num_videos: int | None = None, search_pool: int | None = None
@@ -49,7 +76,8 @@ class RecapService:
         recap_cfg = self._config.recap
         count = _clamp(num_videos, recap_cfg.default_videos, recap_cfg.max_videos)
         pool = _clamp(search_pool, recap_cfg.default_search_pool, self._config.search.max_results)
-        return [self._recap_item(v) for v in self._ranked(query, max(pool, count))[:count]]
+        videos = self._ranked(validate_query(query), max(pool, count))[:count]
+        return [self._recap_item(v) for v in videos]
 
     def _ranked(self, query: str, limit: int) -> list[Video]:
         videos = self._searcher.search(query, limit)
@@ -60,6 +88,10 @@ class RecapService:
             transcript = self.transcript(video.id)
         except TranscriptUnavailableError as exc:
             return RecapItem(video=video, transcript=None, unavailable_reason=exc.reason)
+        except YouTubeUnavailableError as exc:
+            # One unreachable video should not fail the whole recap.
+            logger.warning("recap: skipping %s: %s", video.id, exc)
+            return RecapItem(video=video, transcript=None, unavailable_reason="network error")
         limit = self._config.recap.max_transcript_chars
         if len(transcript.text) <= limit:
             return RecapItem(video=video, transcript=transcript)

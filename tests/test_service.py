@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+import pytest
+
 from tests.conftest import HIGH, LOW, UNKNOWN, FakeSearcher, FakeTranscripts
 from youtube_recap.config import AppConfig
+from youtube_recap.errors import InvalidInputError, YouTubeUnavailableError
+from youtube_recap.models import Transcript
 from youtube_recap.service import RecapService
 
 
@@ -66,3 +72,40 @@ def test_recap_marks_missing_transcripts(service: RecapService) -> None:
 def test_recap_no_results(config: AppConfig, transcripts: FakeTranscripts) -> None:
     service = RecapService(config, FakeSearcher(videos=[]), transcripts)
     assert service.recap("nothing") == []
+
+
+@pytest.mark.parametrize("query", ["", "   "])
+def test_empty_query_is_rejected(service: RecapService, query: str) -> None:
+    with pytest.raises(InvalidInputError):
+        service.search(query)
+    with pytest.raises(InvalidInputError):
+        service.recap(query)
+
+
+@pytest.mark.parametrize("video_id", ["short", "https://youtu.be/aaaaaaaaaaa", "aaaaaaaaaa!"])
+def test_bad_video_id_is_rejected(service: RecapService, video_id: str) -> None:
+    with pytest.raises(InvalidInputError, match="not a YouTube video id"):
+        service.transcript(video_id)
+
+
+def test_video_id_whitespace_is_stripped(
+    service: RecapService, transcripts: FakeTranscripts
+) -> None:
+    service.transcript("  aaaaaaaaaaa \n")
+    assert transcripts.calls[0][0] == "aaaaaaaaaaa"
+
+
+class FlakyTranscripts(FakeTranscripts):
+    def fetch(self, video_id: str, languages: Sequence[str]) -> Transcript:
+        if video_id == HIGH.id:
+            raise YouTubeUnavailableError("timeout")
+        return super().fetch(video_id, languages)
+
+
+def test_recap_survives_network_error_on_one_video(
+    config: AppConfig, searcher: FakeSearcher
+) -> None:
+    service = RecapService(config, searcher, FlakyTranscripts())
+    high, low = service.recap("q", num_videos=2)
+    assert high.transcript is None and high.unavailable_reason == "network error"
+    assert low.transcript is not None
