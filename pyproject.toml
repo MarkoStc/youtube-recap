@@ -3,6 +3,9 @@ name = "youtube-recap"
 version = "0.1.0"
 description = "MCP server that searches YouTube and returns transcripts for an assistant to summarize."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Marko Stojanovic" }]
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.2.0",
