@@ -17,6 +17,9 @@ youtube-recap = "youtube_recap.server:main"
 
 [dependency-groups]
 dev = [
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
     "ruff>=0.6.0",
 ]
 
@@ -39,3 +42,26 @@ src = ["src"]
 # A sensible, not-overbearing set: pyflakes/pycodestyle, import sorting,
 # pyupgrade, bugbear, and simplify.
 select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["live: calls the real YouTube (deselected by default; run with -m live)"]
+
+[tool.coverage.run]
+source = ["youtube_recap"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+# yt-dlp ships no type hints.
+module = ["yt_dlp", "yt_dlp.*"]
+ignore_missing_imports = true
