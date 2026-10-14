@@ -29,6 +29,9 @@ project uses [Semantic Versioning](https://semver.org/).
 - Command-line interface: `search`, `transcript`, `recap` (text or `--json`), `cache
   clear|path`, `config show`, `--version`, `--config`. With no command it runs the MCP
   server, so existing client registrations keep working. `python -m youtube_recap` works too.
+- Recap quality evaluation (`youtube-recap eval`, optional `eval` extra): a fixed set of
+  6 videos with 54 reference key points, a summarizer and an LLM judge, comparing the
+  recap tool's cut transcripts with full ones. See `evals/README.md`. No results recorded yet.
 - Token-bucket rate limit shared by all requests to YouTube (default 2 per second,
   bursts of 5), configurable under `rate_limit`.
 

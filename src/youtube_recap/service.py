@@ -92,8 +92,12 @@ class RecapService:
             # One unreachable video should not fail the whole recap.
             logger.warning("recap: skipping %s: %s", video.id, exc)
             return RecapItem(video=video, transcript=None, unavailable_reason="network error")
+        cut, truncated = self.cut_for_recap(transcript)
+        return RecapItem(video=video, transcript=cut, truncated=truncated)
+
+    def cut_for_recap(self, transcript: Transcript) -> tuple[Transcript, bool]:
+        """Apply the recap length cap; return the transcript (maybe cut) and whether it was cut."""
         limit = self._config.recap.max_transcript_chars
         if len(transcript.text) <= limit:
-            return RecapItem(video=video, transcript=transcript)
-        cut = replace(transcript, text=transcript.text[:limit])
-        return RecapItem(video=video, transcript=cut, truncated=True)
+            return transcript, False
+        return replace(transcript, text=transcript.text[:limit]), True

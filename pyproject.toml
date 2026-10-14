@@ -21,8 +21,14 @@ dependencies = [
 [project.scripts]
 youtube-recap = "youtube_recap.cli:main"
 
+[project.optional-dependencies]
+eval = [
+    "anthropic>=1.0",
+]
+
 [dependency-groups]
 dev = [
+    "anthropic>=1.0",
     "mypy>=1.13",
     "pre-commit>=4.0",
     "pytest>=8.3",

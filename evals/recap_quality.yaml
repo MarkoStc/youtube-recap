@@ -1,0 +1,144 @@
+# Fixed evaluation set for recap quality. Used by `youtube-recap eval`.
+#
+# Provenance (read before trusting any score):
+# - Videos chosen on 2026-10-14: popular explainers with English captions, 6 to 26 minutes,
+#   so most transcripts are longer than the default 8,000-character recap cap.
+# - Key points were drafted by Claude Opus 5.5 from the full transcripts on 2026-10-14 and
+#   have not yet been reviewed by a person. They are the reference the judge scores against.
+# - `quote` is a short verbatim phrase from the transcript where the point is made. The
+#   harness uses it to tell whether a point lies inside the text the recap keeps or after
+#   the cut. If YouTube changes a transcript, the harness reports quotes it cannot find.
+# Transcripts are not stored here; the harness fetches them through the normal pipeline.
+
+cases:
+  - video_id: aircAruvnKk
+    title: "But what is a neural network? | Deep learning chapter 1 (3Blue1Brown)"
+    key_points:
+      - text: A neuron holds a number between 0 and 1, called its activation.
+        quote: "This number inside the neuron is called its activation"
+      - text: The input layer has 784 neurons, one for each pixel of a 28x28 image.
+        quote: "which is 784 neurons in total"
+      - text: The output layer has 10 neurons, one per digit, and the most active one is the network's answer.
+        quote: "the brightest neuron of that output layer is the network's choice"
+      - text: The example network has two hidden layers of 16 neurons each, a fairly arbitrary choice.
+        quote: "I chose two hidden layers, each one with 16 neurons"
+      - text: The hope is that hidden layers detect small edges, then larger patterns such as loops and lines.
+        quote: "each neuron in the second layer of the network corresponds with the various relevant little edges"
+      - text: Each neuron takes a weighted sum of the previous layer's activations, adds a bias, and applies the sigmoid function.
+        quote: "That additional number is called the bias"
+      - text: The network has about 13,000 weights and biases, and learning means finding good values for them.
+        quote: "this network has almost exactly 13,000 total weights and biases"
+      - text: A layer-to-layer step can be written compactly as a matrix-vector product plus a bias vector, passed through the sigmoid.
+        quote: "Organize all of the activations from one layer into a column as a vector"
+      - text: Modern networks mostly use ReLU instead of the sigmoid because it is easier to train.
+        quote: "ReLU seems to be much easier to train"
+
+  - video_id: GSIDS_lvRv4
+    title: "Public Key Cryptography (Computerphile)"
+    key_points:
+      - text: Symmetric encryption uses one shared secret key to encrypt and decrypt.
+        quote: "this is a symmetric system"
+      - text: The weakness of symmetric encryption is that both parties must first share the key securely.
+        quote: "you both need to know what this key is"
+      - text: Asymmetric encryption uses a key pair, where what one key encrypts only the other can decrypt.
+        quote: "anything you encrypt with key a can only be decrypted with key b"
+      - text: One key is published as the public key and the other is kept secret as the private key.
+        quote: "this is my public key"
+      - text: Anyone can send you a confidential message by encrypting it with your public key.
+        quote: "encrypt something with my public key send it to me"
+      - text: Encrypting with your private key proves the message came from you.
+        quote: "it must have been you who made the message"
+      - text: Combining both gives confidentiality, authenticity and detection of tampering without ever meeting.
+        quote: "the message hasn't been modified"
+
+  - video_id: lXfEK8G8CUI
+    title: "How The Immune System ACTUALLY Works (Kurzgesagt)"
+    key_points:
+      - text: Damaged cells release chemical alarm signals that activate the immune system.
+        quote: "releasing an onslaught of chemical alarm signals"
+      - text: Macrophages arrive first and swallow bacteria, up to about 100 each.
+        quote: "eat 100 bacteria before it's exhausted"
+      - text: Neutrophils are short-lived, damage your own cells too, and can explode into toxic DNA nets that trap bacteria.
+        quote: "toxic Nets made from their own DNA"
+      - text: Inflammation is fluid flowing into the area, which brings complement proteins that punch holes in bacteria.
+        quote: "you notice this as inflammation"
+      - text: Dendritic cells carry pieces of the bacteria to the lymph nodes to find a matching helper T cell.
+        quote: "the dendritic cell coming from the battlefield is looking for a helper te cell"
+      - text: The matching helper T cell, once activated, clones itself thousands of times.
+        quote: "begins to clone itself over and over again"
+      - text: Helper T cells re-energise tired macrophages at the infection site.
+        quote: "the demoralized soldier feels fresh again"
+      - text: Activated B cells produce antibodies, up to 2,000 per second, which clump and disable bacteria.
+        quote: "2,000 antibodies per second"
+      - text: Some T and B cells remain as memory cells, giving long-lasting immunity.
+        quote: "turn into memory cells"
+
+  - video_id: pTn6Ewhb27k
+    title: "Why No One Has Measured The Speed Of Light (Veritasium)"
+    key_points:
+      - text: Since 1983 the meter is defined using the speed of light, so its value is exact by definition.
+        quote: "since 1983, we've actually used the speed of light to define how long a meter is"
+      - text: Timing light one way needs two synchronized clocks, and moving a clock to sync it changes its time because of relativity.
+        quote: "moving clocks ticks slow relative to stationary observers"
+      - text: Fizeau first measured the speed of light in 1849 with a spinning toothed wheel and a distant mirror.
+        quote: "Hippolyte Fizeau in 1849"
+      - text: Only the round-trip (two-way) speed of light has been measured, never the one-way speed.
+        quote: "no one has measured the one-way speed of light"
+      - text: Light could travel at c/2 one way and instantly on the way back without contradicting any experiment.
+        quote: "half of 'c' in one direction"
+      - text: Einstein's 1905 paper assumed equal speeds in both directions as a convention, the Einstein synchronization convention.
+        quote: "Einstein synchronization convention"
+      - text: Proposed workarounds such as fibre loops, synchronization pulses and GPS still rely on the two-way speed.
+        quote: "This is the same reason GPS synchronized clocks won't work"
+      - text: In the Mars example, Earth and Mars clocks could be 10 minutes out of sync with no way to detect it.
+        quote: "their clocks are out of sync by 10 minutes"
+      - text: Under the alternative convention we could be seeing distant stars as they are right now.
+        quote: "exactly as they are right this instant"
+
+  - video_id: eMlx5fFNoYc
+    title: "Attention in transformers, step-by-step | Deep Learning Chapter 6 (3Blue1Brown)"
+    key_points:
+      - text: Attention updates context-free token embeddings with meaning from surrounding words (the "mole" example).
+        quote: "American shrew mole"
+      - text: Each token produces a query vector by multiplying its embedding with a query matrix into a smaller space.
+        quote: "which we call the query for this word"
+      - text: Keys come from a key matrix, and dot products between keys and queries score how relevant words are to each other.
+        quote: "you compute a dot product between each possible key-query pair"
+      - text: Scores are divided by the square root of the key-query dimension and normalized with softmax into an attention pattern.
+        quote: "divide all of these values by the square root of the dimension"
+      - text: Masking sets entries where later tokens would influence earlier ones to negative infinity before the softmax.
+        quote: "This process is called masking"
+      - text: The attention pattern grows with the square of the context size, which makes long contexts expensive.
+        quote: "its size is equal to the square of the context size"
+      - text: Value vectors, weighted by the attention pattern, are added to the embeddings to update them.
+        quote: "what we call the value matrix"
+      - text: The value map is factored into two smaller matrices, a low-rank transformation.
+        quote: "constraining the overall value map to be a low rank transformation"
+      - text: Multi-headed attention runs many heads in parallel; GPT-3 uses 96 heads per block.
+        quote: "GPT-3 for example uses 96 attention heads inside each block"
+      - text: Attention accounts for about 58 billion of GPT-3's 175 billion parameters.
+        quote: "just under 58 billion distinct parameters"
+
+  - video_id: VFIOSWy93H0
+    title: "Understanding Ownership in Rust (Let's Get Rusty)"
+    key_points:
+      - text: Ownership is a third memory-management approach next to garbage collection and manual management, enforced by compile-time checks.
+        quote: "the ownership model which is a third way to manage memory"
+      - text: The cost is slower writing time while you learn to satisfy the borrow checker.
+        quote: "fighting with a borrower checker"
+      - text: Stack data has a fixed size known at compile time; heap data is dynamic and reached through a pointer, which is slower.
+        quote: "pushing to the stack is faster than allocating on the heap"
+      - text: The three ownership rules are one owner per value, one owner at a time, and the value is dropped when the owner goes out of scope.
+        quote: "each value in rust has a variable that's called its owner"
+      - text: Assigning a String to another variable moves it and invalidates the original; clone makes a deep copy, while simple types like integers are copied.
+        quote: "this is called a move"
+      - text: Passing a value to a function moves ownership into the function.
+        quote: "passing in s moves s into the sumstring variable"
+      - text: References let functions borrow a value without taking ownership, and they are immutable by default.
+        quote: "passing in references as function parameters is called borrowing"
+      - text: You can have one mutable reference or any number of immutable references at a time, which prevents data races at compile time.
+        quote: "rest can prevent data races at compile time"
+      - text: Rust rejects dangling references at compile time.
+        quote: "next let's talk about dangling references"
+      - text: Slices reference part of a collection without ownership, and string literals are string slices (&str).
+        quote: "string literals are actually string slices"

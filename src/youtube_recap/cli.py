@@ -15,16 +15,30 @@ import json
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
-from typing import TextIO
+from pathlib import Path
+from typing import TYPE_CHECKING, TextIO
 
 import yaml
 
 from youtube_recap import __version__, formatting
 from youtube_recap.app import build_service, prepare_runtime
 from youtube_recap.cache import DiskCache
-from youtube_recap.config import CONFIG_ENV_VAR, AppConfig, ConfigError, load_config
+from youtube_recap.config import (
+    CONFIG_ENV_VAR,
+    AppConfig,
+    ConfigError,
+    ModelConfig,
+    load_config,
+)
 from youtube_recap.errors import InvalidInputError, YouTubeRecapError
 from youtube_recap.service import RecapService
+
+if TYPE_CHECKING:
+    from youtube_recap.evaluation.llm import TextModel
+
+ModelFactory = Callable[[ModelConfig, bool], "TextModel"]
+DEFAULT_DATASET = Path("evals/recap_quality.yaml")
+DEFAULT_RESULTS = Path("evals/results")
 
 EXIT_OK = 0
 EXIT_ERROR = 1  # YouTube failures, unavailable transcripts
@@ -74,6 +88,28 @@ def _build_parser() -> argparse.ArgumentParser:
 
     config = sub.add_parser("config", help="inspect the configuration")
     config.add_argument("action", choices=["show"])
+
+    evaluate = sub.add_parser(
+        "eval",
+        help="score recap quality with an LLM judge (needs the eval extra and Claude API access)",
+    )
+    evaluate.add_argument(
+        "--dataset",
+        type=Path,
+        default=DEFAULT_DATASET,
+        help="key points YAML (default: %(default)s)",
+    )
+    evaluate.add_argument(
+        "--out", type=Path, default=DEFAULT_RESULTS, help="results folder (default: %(default)s)"
+    )
+    evaluate.add_argument(
+        "--condition",
+        action="append",
+        choices=["recap", "full"],
+        dest="conditions",
+        help="run only this condition; repeat for both (default: both)",
+    )
+    evaluate.add_argument("--limit", type=int, help="only the first N videos (for a cheap trial)")
     return parser
 
 
@@ -117,6 +153,46 @@ _SERVICE_COMMANDS: dict[str, Callable[[argparse.Namespace, RecapService, TextIO]
 }
 
 
+def _cmd_eval(
+    args: argparse.Namespace,
+    config: AppConfig,
+    service: RecapService,
+    model_factory: ModelFactory,
+    out: TextIO,
+) -> int:
+    # Imported here so the other commands work without the optional anthropic package.
+    from youtube_recap.evaluation.dataset import Dataset, load_dataset
+    from youtube_recap.evaluation.graders import Judge, Summarizer
+    from youtube_recap.evaluation.runner import EvalRunner, render_markdown
+
+    dataset = load_dataset(args.dataset)
+    if args.limit is not None:
+        dataset = Dataset(cases=dataset.cases[: max(1, args.limit)])
+    ev = config.evaluation
+    summarizer = Summarizer(
+        model_factory(ev.summarizer, ev.server_side_fallback), ev.summary_max_words
+    )
+    judge = Judge(model_factory(ev.judge, ev.server_side_fallback))
+    result = EvalRunner(service, summarizer, judge).run(
+        dataset, tuple(args.conditions or ("recap", "full"))
+    )
+    table = render_markdown(result)
+    args.out.mkdir(parents=True, exist_ok=True)
+    stamp = result.started_at.replace(":", "").replace("-", "")
+    (args.out / f"run-{stamp}.json").write_text(
+        json.dumps(result.to_json(), indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (args.out / "latest.md").write_text(table, encoding="utf-8")
+    out.write(table)
+    return EXIT_OK
+
+
+def _anthropic_model(config: ModelConfig, fallback: bool) -> TextModel:
+    from youtube_recap.evaluation.llm import AnthropicModel
+
+    return AnthropicModel(config, fallback)
+
+
 def _cmd_cache(args: argparse.Namespace, config: AppConfig, out: TextIO) -> int:
     cache = DiskCache(config.cache.directory)
     if args.action == "path":
@@ -137,10 +213,12 @@ def run(
     err: TextIO | None = None,
     service_factory: Callable[[AppConfig], RecapService] = build_service,
     serve: Callable[[AppConfig], None] | None = None,
+    model_factory: ModelFactory = _anthropic_model,
 ) -> int:
     """Parse ``argv`` and run the command; return the process exit code.
 
-    ``service_factory`` and ``serve`` are injectable so tests run without network or stdio.
+    ``service_factory``, ``serve`` and ``model_factory`` are injectable so tests run
+    without network, stdio or API calls.
     """
     out = out or sys.stdout
     err = err or sys.stderr
@@ -166,8 +244,10 @@ def run(
 
     prepare_runtime(config)
     try:
+        if command == "eval":
+            return _cmd_eval(args, config, service_factory(config), model_factory, out)
         return _SERVICE_COMMANDS[command](args, service_factory(config), out)
-    except InvalidInputError as exc:
+    except (InvalidInputError, ConfigError) as exc:
         err.write(f"error: {exc}\n")
         return EXIT_USAGE
     except YouTubeRecapError as exc:
