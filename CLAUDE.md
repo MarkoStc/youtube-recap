@@ -22,7 +22,7 @@ README.md               user-facing docs
 ## Environment / tooling
 
 - **uv** for everything; **Python 3.11+** (`.venv` built on 3.12).
-- Runtime deps: `mcp` (FastMCP), `yt-dlp`, `youtube-transcript-api`.
+- Runtime deps: `mcp` (FastMCP), `yt-dlp`, `youtube-transcript-api`, `truststore`.
 - Dev deps: `ruff` (lint + format).
 
 ## Command cheat-sheet
@@ -43,8 +43,20 @@ uv run python -c "from youtube_recap import server; print(server.search_videos('
 ## Hard constraints / gotchas
 
 - **This network intercepts TLS.** uv fails with `invalid peer certificate: UnknownIssuer`
-  unless it trusts the system cert store. Handled via `native-tls = true` under `[tool.uv]`
-  in `pyproject.toml` — keep it. (Equivalent flag: `uv sync --native-tls`.)
+  unless it trusts the system cert store. Handled via `system-certs = true` under `[tool.uv]`
+  in `pyproject.toml` (the older name `native-tls` is deprecated in uv 0.12). Keep it.
+- On this Windows machine, uv cannot extract the `pywin32` wheel (an `mcp` dependency):
+  "Access is denied" when it renames the unpacked folder, likely antivirus. Workaround:
+  `uv sync --no-install-package pywin32`, then `.venv\Scripts\python -m ensurepip` and
+  `.venv\Scripts\python -m pip install pywin32==312`. After that use `uv run --no-sync`.
+- The same TLS problem hits Python at runtime. `server.py` calls `truststore.inject_into_ssl()`
+  before importing `yt_dlp` or `youtube_transcript_api`, so they use the OS trust store. Keep
+  that call above those imports (hence the `# noqa: E402` markers); ruff's import sorting
+  must not move them.
+- "Most-viewed" means most-viewed among the first N `ytsearch` results (yt-dlp search
+  with `extract_flat`, which reads metadata without loading each video page), not across
+  all of YouTube. `recap` searches `max(search_pool, num_videos)` results, then keeps the top
+  `num_videos`.
 - `pyproject.toml` sets `readme = "README.md"`, so **README.md must exist before
   `uv sync`** can build the project, or hatchling errors out.
 - Transcript fetching tolerates both `youtube-transcript-api` >=1.0 (instance `.fetch`)
@@ -61,4 +73,3 @@ uv run python -c "from youtube_recap import server; print(server.search_videos('
 ## Out of scope (by request)
 
 No CI, Docker, pre-commit, or test framework yet — baseline is intentionally lean.
-```
