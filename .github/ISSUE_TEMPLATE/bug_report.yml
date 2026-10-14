@@ -1,0 +1,29 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The tool or command you ran, what you expected, and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact command or MCP tool call, including the query or video id.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or git commit hash.
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, MCP client (Claude Code, Claude Desktop, Inspector, ...).
